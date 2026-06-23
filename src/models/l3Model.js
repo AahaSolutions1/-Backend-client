@@ -12,13 +12,14 @@ import {
 export const getL3Approvals = async () => {
   const [rows] = await pool.query(
     `SELECT c.id as changeNo, 
+            c.status as status,
             DATE_FORMAT(c.date, '%e %b') as date, 
-            COALESCE(l1.request_by, u.name, c.requester) as requester,
-            COALESCE(l1.dept, u.department) as raisedDept,
+            COALESCE(NULLIF(u.name, ''), l1.request_by, c.requester) as requester,
+            COALESCE(NULLIF(u.department, ''), l1.dept) as raisedDept,
             v.status as l2Decision,
             v.remarks as l2Remarks,
             COALESCE(l.ped, 'Pending') as ped,
-            COALESCE(l.quality, 'Pending') as quality,
+            COALESCE(l.qad, 'Pending') as qad,
             COALESCE(l.production, 'Pending') as production,
             COALESCE(l.maintenance, 'Pending') as maintenance,
             COALESCE(l.pcl, 'Pending') as pcl,
@@ -26,21 +27,34 @@ export const getL3Approvals = async () => {
             COALESCE(l.marketing, 'Pending') as marketing,
             COALESCE(l.hr, 'Pending') as hr,
             COALESCE(l.safety, 'Pending') as safety,
-            COALESCE(l.unit_head, 'Pending') as unitHead
+            COALESCE(l.unit_head, 'Pending') as unitHead,
+            e.qa_approval as qaApproval
      FROM change_requests c
      LEFT JOIN l1_requests l1 ON c.id = l1.change_no
      LEFT JOIN users u ON c.requester = u.email
      INNER JOIN l2_validation_logs v ON c.id = v.change_no AND v.status = 'Accepted'
      LEFT JOIN l3_approvals l ON c.id = l.change_no
-     ORDER BY c.created_at DESC`
+     LEFT JOIN effectiveness_logs e ON c.id = e.change_no
+     WHERE e.id IS NULL
+     ORDER BY c.created_at DESC, CAST(SUBSTRING_INDEX(c.id, '-', -1) AS UNSIGNED) DESC`
   );
   return rows;
+};
+
+export const getL3DetailsByChangeNo = async (changeNo) => {
+  const [rows] = await pool.query(
+    `SELECT change_no as changeNo, ped, qad, production, maintenance, pcl, materials, marketing, hr, safety, unit_head as unitHead, date, requester
+     FROM l3_approvals
+     WHERE change_no = ?`,
+    [changeNo]
+  );
+  return rows[0] || null;
 };
 
 export const addL3ApprovalLog = async (logData) => {
   const {
     changeNo, date, requester,
-    ped, quality, production, maintenance, pcl, materials, marketing, hr, safety, unitHead
+    ped, qad, production, maintenance, pcl, materials, marketing, hr, safety, unitHead
   } = logData;
 
   const connection = await pool.getConnection();
@@ -67,7 +81,7 @@ export const addL3ApprovalLog = async (logData) => {
 
     // Fetch existing L3 approval before update to detect HOD decision changes
     const [existingL3Rows] = await connection.query(
-      `SELECT ped, quality, production, maintenance, pcl, materials, marketing, hr, safety, unit_head as unitHead
+      `SELECT ped, qad, production, maintenance, pcl, materials, marketing, hr, safety, unit_head as unitHead
        FROM l3_approvals WHERE change_no = ?`,
       [changeNo]
     );
@@ -77,7 +91,7 @@ export const addL3ApprovalLog = async (logData) => {
       const dbL3 = existingL3Rows[0];
       wasAlreadyAllL3Decided = 
         dbL3.ped && dbL3.ped !== 'Pending' &&
-        dbL3.quality && dbL3.quality !== 'Pending' &&
+        dbL3.qad && dbL3.qad !== 'Pending' &&
         dbL3.production && dbL3.production !== 'Pending' &&
         dbL3.maintenance && dbL3.maintenance !== 'Pending' &&
         dbL3.pcl && dbL3.pcl !== 'Pending' &&
@@ -88,65 +102,43 @@ export const addL3ApprovalLog = async (logData) => {
         dbL3.unitHead && dbL3.unitHead !== 'Pending';
     }
 
-    let updatedDeptField = null;
-    let newDecision = null;
+
+
+    let finalPed = ped;
+    let finalQad = qad;
+    let finalProduction = production;
+    let finalMaintenance = maintenance;
+    let finalPcl = pcl;
+    let finalMaterials = materials;
+    let finalMarketing = marketing;
+    let finalHr = hr;
+    let finalSafety = safety;
+    let finalUnitHead = unitHead;
 
     if (existingL3Rows.length > 0) {
       const dbL3 = existingL3Rows[0];
-      const fields = [
-        { key: 'ped', db: dbL3.ped, label: 'PED' },
-        { key: 'quality', db: dbL3.quality, label: 'Quality' },
-        { key: 'production', db: dbL3.production, label: 'Production' },
-        { key: 'maintenance', db: dbL3.maintenance, label: 'Maintenance' },
-        { key: 'pcl', db: dbL3.pcl, label: 'PC & L' },
-        { key: 'materials', db: dbL3.materials, label: 'Materials' },
-        { key: 'marketing', db: dbL3.marketing, label: 'Marketing' },
-        { key: 'hr', db: dbL3.hr, label: 'HR' },
-        { key: 'safety', db: dbL3.safety, label: 'Safety' },
-        { key: 'unitHead', db: dbL3.unitHead, label: 'Unit Head' }
-      ];
-
-      for (const field of fields) {
-        const incomingVal = logData[field.key];
-        if (incomingVal && incomingVal !== 'Pending' && incomingVal !== field.db) {
-          updatedDeptField = field.label;
-          newDecision = incomingVal;
-          break;
-        }
-      }
-    } else {
-      const fields = [
-        { key: 'ped', val: ped, label: 'PED' },
-        { key: 'quality', val: quality, label: 'Quality' },
-        { key: 'production', val: production, label: 'Production' },
-        { key: 'maintenance', val: maintenance, label: 'Maintenance' },
-        { key: 'pcl', val: pcl, label: 'PC & L' },
-        { key: 'materials', val: materials, label: 'Materials' },
-        { key: 'marketing', val: marketing, label: 'Marketing' },
-        { key: 'hr', val: hr, label: 'HR' },
-        { key: 'safety', val: safety, label: 'Safety' },
-        { key: 'unitHead', val: unitHead, label: 'Unit Head' }
-      ];
-
-      for (const field of fields) {
-        if (field.val && field.val !== 'Pending') {
-          updatedDeptField = field.label;
-          newDecision = field.val;
-          break;
-        }
-      }
+      if ((ped === 'Pending' || !ped) && dbL3.ped && dbL3.ped !== 'Pending') finalPed = dbL3.ped;
+      if ((qad === 'Pending' || !qad) && dbL3.qad && dbL3.qad !== 'Pending') finalQad = dbL3.qad;
+      if ((production === 'Pending' || !production) && dbL3.production && dbL3.production !== 'Pending') finalProduction = dbL3.production;
+      if ((maintenance === 'Pending' || !maintenance) && dbL3.maintenance && dbL3.maintenance !== 'Pending') finalMaintenance = dbL3.maintenance;
+      if ((pcl === 'Pending' || !pcl) && dbL3.pcl && dbL3.pcl !== 'Pending') finalPcl = dbL3.pcl;
+      if ((materials === 'Pending' || !materials) && dbL3.materials && dbL3.materials !== 'Pending') finalMaterials = dbL3.materials;
+      if ((marketing === 'Pending' || !marketing) && dbL3.marketing && dbL3.marketing !== 'Pending') finalMarketing = dbL3.marketing;
+      if ((hr === 'Pending' || !hr) && dbL3.hr && dbL3.hr !== 'Pending') finalHr = dbL3.hr;
+      if ((safety === 'Pending' || !safety) && dbL3.safety && dbL3.safety !== 'Pending') finalSafety = dbL3.safety;
+      if ((unitHead === 'Pending' || !unitHead) && dbL3.unitHead && dbL3.unitHead !== 'Pending') finalUnitHead = dbL3.unitHead;
     }
 
     await connection.query(
       `INSERT INTO l3_approvals (
-        change_no, date, requester, ped, quality, production, 
+        change_no, date, requester, ped, qad, production, 
         maintenance, pcl, materials, marketing, hr, safety, unit_head
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         date = VALUES(date),
         requester = VALUES(requester),
         ped = VALUES(ped),
-        quality = VALUES(quality),
+        qad = VALUES(qad),
         production = VALUES(production),
         maintenance = VALUES(maintenance),
         pcl = VALUES(pcl),
@@ -157,15 +149,16 @@ export const addL3ApprovalLog = async (logData) => {
         unit_head = VALUES(unit_head)`,
       [
         changeNo, date, requester,
-        ped || 'Pending', quality || 'Pending', production || 'Pending',
-        maintenance || 'Pending', pcl || 'Pending', materials || 'Pending',
-        marketing || 'Pending', hr || 'Pending', safety || 'Pending', unitHead || 'Pending'
+        finalPed || 'Pending', finalQad || 'Pending', finalProduction || 'Pending',
+        finalMaintenance || 'Pending', finalPcl || 'Pending', finalMaterials || 'Pending',
+        finalMarketing || 'Pending', finalHr || 'Pending', finalSafety || 'Pending', finalUnitHead || 'Pending'
       ]
     );
 
-    // Fetch raisedDept and requesterEmail
+    // Fetch raisedDept, requesterEmail, title, date, date_start
     const [crRows] = await connection.query(
-      `SELECT COALESCE(l1.dept, u.department) as raisedDept, c.requester as requesterEmail
+      `SELECT COALESCE(l1.dept, u.department) as raisedDept, c.requester as requesterEmail, c.title, 
+              DATE_FORMAT(c.date, '%Y-%m-%d') as date, DATE_FORMAT(l1.date_start, '%Y-%m-%d') as dateStart
        FROM change_requests c
        LEFT JOIN l1_requests l1 ON c.id = l1.change_no
        LEFT JOIN users u ON c.requester = u.email
@@ -174,42 +167,29 @@ export const addL3ApprovalLog = async (logData) => {
     );
     const raisedDept = crRows.length > 0 ? crRows[0].raisedDept : '';
     const requesterEmail = crRows.length > 0 ? crRows[0].requesterEmail : '';
+    const title = crRows.length > 0 ? crRows[0].title : '';
+    const dbDate = crRows.length > 0 ? crRows[0].date : new Date().toISOString().slice(0, 10);
+    const dateStart = crRows.length > 0 && crRows[0].dateStart ? crRows[0].dateStart : dbDate;
 
-    const mapDbDeptToL3Dept = (dbDept) => {
-      if (!dbDept) return 'Quality';
-      const dept = dbDept.trim().toLowerCase();
-      if (dept === 'qad' || dept === 'quality') return 'Quality';
-      if (dept === 'ped') return 'PED';
-      if (dept === 'production') return 'Production';
-      if (dept === 'maintenance') return 'Maintenance';
-      if (dept === 'pc & l' || dept === 'pcl') return 'PC & L';
-      if (dept === 'materials') return 'Materials';
-      if (dept === 'marketing') return 'Marketing';
-      if (dept === 'hr') return 'HR';
-      if (dept === 'safety') return 'Safety';
-      if (dept === 'unit head' || dept === 'unit_head') return 'Unit Head';
-      return 'Quality';
-    };
 
-    const mappedRaisedDept = mapDbDeptToL3Dept(raisedDept);
 
     const isAllL3Decided = 
-      ped !== 'Pending' &&
-      quality !== 'Pending' &&
-      production !== 'Pending' &&
-      maintenance !== 'Pending' &&
-      pcl !== 'Pending' &&
-      materials !== 'Pending' &&
-      marketing !== 'Pending' &&
-      hr !== 'Pending' &&
-      safety !== 'Pending' &&
-      unitHead !== 'Pending';
+      finalPed !== 'Pending' &&
+      finalQad !== 'Pending' &&
+      finalProduction !== 'Pending' &&
+      finalMaintenance !== 'Pending' &&
+      finalPcl !== 'Pending' &&
+      finalMaterials !== 'Pending' &&
+      finalMarketing !== 'Pending' &&
+      finalHr !== 'Pending' &&
+      finalSafety !== 'Pending' &&
+      finalUnitHead !== 'Pending';
 
     // Calculate if any of the decisions is 'Rejected'
     const rejectedDepts = [];
     const labelMap = {
       ped: 'PED',
-      quality: 'Quality',
+      qad: 'QAD',
       production: 'Production',
       maintenance: 'Maintenance',
       pcl: 'PC & L',
@@ -219,24 +199,56 @@ export const addL3ApprovalLog = async (logData) => {
       safety: 'Safety',
       unitHead: 'Unit Head'
     };
-    if (ped === 'Rejected') rejectedDepts.push(labelMap.ped);
-    if (quality === 'Rejected') rejectedDepts.push(labelMap.quality);
-    if (production === 'Rejected') rejectedDepts.push(labelMap.production);
-    if (maintenance === 'Rejected') rejectedDepts.push(labelMap.maintenance);
-    if (pcl === 'Rejected') rejectedDepts.push(labelMap.pcl);
-    if (materials === 'Rejected') rejectedDepts.push(labelMap.materials);
-    if (marketing === 'Rejected') rejectedDepts.push(labelMap.marketing);
-    if (hr === 'Rejected') rejectedDepts.push(labelMap.hr);
-    if (safety === 'Rejected') rejectedDepts.push(labelMap.safety);
-    if (unitHead === 'Rejected') rejectedDepts.push(labelMap.unitHead);
+    if (finalPed === 'Rejected') rejectedDepts.push(labelMap.ped);
+    if (finalQad === 'Rejected') rejectedDepts.push(labelMap.qad);
+    if (finalProduction === 'Rejected') rejectedDepts.push(labelMap.production);
+    if (finalMaintenance === 'Rejected') rejectedDepts.push(labelMap.maintenance);
+    if (finalPcl === 'Rejected') rejectedDepts.push(labelMap.pcl);
+    if (finalMaterials === 'Rejected') rejectedDepts.push(labelMap.materials);
+    if (finalMarketing === 'Rejected') rejectedDepts.push(labelMap.marketing);
+    if (finalHr === 'Rejected') rejectedDepts.push(labelMap.hr);
+    if (finalSafety === 'Rejected') rejectedDepts.push(labelMap.safety);
+    if (finalUnitHead === 'Rejected') rejectedDepts.push(labelMap.unitHead);
 
     const hasRejection = rejectedDepts.length > 0;
+
+    const isAllL3Approved = 
+      finalPed === 'Approved' &&
+      finalQad === 'Approved' &&
+      finalProduction === 'Approved' &&
+      finalMaintenance === 'Approved' &&
+      finalPcl === 'Approved' &&
+      finalMaterials === 'Approved' &&
+      finalMarketing === 'Approved' &&
+      finalHr === 'Approved' &&
+      finalSafety === 'Approved' &&
+      finalUnitHead === 'Approved';
 
     if (isAllL3Decided) {
       await connection.query(
         `UPDATE change_requests SET status = 'Completed' WHERE id = ?`,
         [changeNo]
       );
+
+      if (isAllL3Approved) {
+        const [existingEff] = await connection.query(
+          `SELECT id FROM effectiveness_logs WHERE change_no = ?`,
+          [changeNo]
+        );
+        if (existingEff.length === 0) {
+          const effId = `EFF-${Date.now().toString().substring(7)}`;
+          await connection.query(
+            `INSERT INTO effectiveness_logs (id, change_no, req_date, context, start_date, month_wise, remarks, attachment, status, qa_approval)
+             VALUES (?, ?, ?, ?, ?, '', '', '', 'Pending', 'Pending')`,
+            [effId, changeNo, dbDate, title, dateStart]
+          );
+        }
+      } else {
+        await connection.query(
+          `DELETE FROM effectiveness_logs WHERE change_no = ?`,
+          [changeNo]
+        );
+      }
 
       if (!wasAlreadyAllL3Decided) {
         const [l1Rows] = await connection.query(

@@ -34,6 +34,18 @@ export const addL1Request = async (l1Data, attachments, userEmail) => {
   try {
     await connection.beginTransaction();
 
+    // Lock the change_requests table to retrieve all current IDs safely and prevent duplicate sequential number generation
+    const [idRows] = await connection.query('SELECT id FROM change_requests FOR UPDATE');
+    let maxNum = 0;
+    for (const row of idRows) {
+      const match = row.id.match(/^4M-2026-(\d+)$/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) maxNum = num;
+      }
+    }
+    const resolvedChangeNo = `4M-2026-${maxNum + 1}`;
+
     let requesterEmail = userEmail;
     if (!requesterEmail || requesterEmail === 'unknown@cms.com') {
       const [adminRows] = await connection.query("SELECT email FROM users WHERE role = 'Admin'");
@@ -45,7 +57,7 @@ export const addL1Request = async (l1Data, attachments, userEmail) => {
 
     await connection.query(
       'INSERT INTO change_requests (id, title, requester, date, priority, status) VALUES (?, ?, ?, CURDATE(), ?, ?)',
-      [changeNo, title, requesterEmail, priority, status]
+      [resolvedChangeNo, title, requesterEmail, priority, status]
     );
 
     const serializedTableData = improvementTableData ? JSON.stringify(improvementTableData) : null;
@@ -61,7 +73,7 @@ export const addL1Request = async (l1Data, attachments, userEmail) => {
         file_risk, file_sop, file_effectiveness, improvement_table_data
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        changeNo, unit, requestedTime, changeIn || '', dept, requestBy,
+        resolvedChangeNo, unit, requestedTime, changeIn || '', dept, requestBy,
         processName, processLine, machineNo, description,
         improvementArea, changeType, formatDateToSql(dateStart), traceFrom,
         formatDateToSql(dateClose), traceTo, riskAnalysis, sopUpdate,
@@ -73,28 +85,38 @@ export const addL1Request = async (l1Data, attachments, userEmail) => {
     );
 
     if (attachments && attachments.length > 0) {
+      const fieldMapping = {
+        fileDesc: 'file_desc',
+        fileImprovement: 'file_improvement',
+        fileTraceFrom: 'file_trace_from',
+        fileTraceTo: 'file_trace_to',
+        fileRisk: 'file_risk',
+        fileSop: 'file_sop',
+        fileEffectiveness: 'file_effectiveness'
+      };
       for (const file of attachments) {
+        const dbFieldName = fieldMapping[file.fieldName] || file.fieldName;
         await connection.query(
           `INSERT INTO l1_attachments (change_no, field_name, file_name, file_data, file_type) 
            VALUES (?, ?, ?, ?, ?)`,
-          [changeNo, file.fieldName, file.name, file.data, file.type]
+          [resolvedChangeNo, dbFieldName, file.name, file.data, file.type]
         );
       }
     }
 
     // Create notifications for selected HODs
-    await createL1RequestNotifications(connection, changeNo, hodApproval, changeIn, requestBy, dept);
+    await createL1RequestNotifications(connection, resolvedChangeNo, hodApproval, changeIn, requestBy, dept);
 
     await connection.commit();
     broadcast({ type: 'REFRESH_CHANGES' });
     broadcast({ type: 'REFRESH_NOTIFICATIONS' });
 
     // Send email notifications asynchronously after commit
-    sendL1RequestEmails(changeNo, hodApproval, changeIn, requestBy, dept).catch(err =>
+    sendL1RequestEmails(resolvedChangeNo, hodApproval, changeIn, requestBy, dept).catch(err =>
       console.error('Error sending L1 HOD notification email:', err)
     );
     return {
-      id: changeNo,
+      id: resolvedChangeNo,
       title,
       requester: userEmail,
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
@@ -125,7 +147,15 @@ export const getNextChangeNo = async () => {
 export const getL1Details = async (changeNo) => {
   const [rows] = await pool.query(
     `SELECT cr.title, cr.requester as crRequester, DATE_FORMAT(cr.date, '%Y-%m-%d') as crDate, cr.priority, cr.status as crStatus,
-            l1.*,
+            l1.change_no, l1.unit, l1.requested_time, l1.change_in,
+            l1.process_name, l1.process_line, l1.machine_no, l1.description,
+            l1.improvement_area, l1.change_type, l1.trace_from, l1.trace_to,
+            l1.risk_analysis, l1.sop_update, l1.hod_approval, l1.customer_approval,
+            l1.effectiveness_monitoring, l1.file_desc, l1.file_improvement,
+            l1.file_trace_from, l1.file_trace_to, l1.file_risk, l1.file_sop,
+            l1.file_effectiveness, l1.improvement_table_data, l1.created_at,
+            COALESCE(NULLIF(u.name, ''), l1.request_by) as request_by,
+            COALESCE(NULLIF(u.department, ''), l1.dept) as dept,
             DATE_FORMAT(l1.date_start, '%Y-%m-%d') as date_start,
             DATE_FORMAT(l1.date_close, '%Y-%m-%d') as date_close,
             ha.status as hodStatus,
@@ -133,6 +163,7 @@ export const getL1Details = async (changeNo) => {
             ha.hod_dept as hodDept
      FROM change_requests cr
      LEFT JOIN l1_requests l1 ON cr.id = l1.change_no
+     LEFT JOIN users u ON cr.requester = u.email
      LEFT JOIN (
        SELECT change_no,
               COALESCE(

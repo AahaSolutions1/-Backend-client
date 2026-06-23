@@ -62,7 +62,7 @@ export const createL1RequestNotifications = async (connection, changeNo, hodAppr
   if (requesterEmail) {
     const requesterNotifId = `L1-REQUESTER-CONFIRM-${changeNo}-${Date.now()}`;
     const requesterNotifTitle = `L1 Change Request Submitted – ${changeNo}`;
-    const requesterNotifDetails = `Your L1 Change Request ${changeNo} has been submitted successfully and is now awaiting HOD approval/validation (Status: Pending L1 HOD Approval).`;
+    const requesterNotifDetails = `L1 Change Request ${changeNo} has been submitted successfully and is now awaiting HOD approval/validation (Status: Pending L1 HOD Approval).`;
     
     await connection.query(
       `INSERT INTO notifications (id, title, details, change_no, category, dept, time_str, is_read, type, color, recipient_email)
@@ -152,7 +152,7 @@ export const sendL1RequestEmails = async (changeNo, hodApproval, changeIn, reque
             
             <div style="text-align: center; margin: 32px 0 12px 0;">
               <a href="${process.env.APP_URL || 'http://localhost:5173'}" style="background-color: #1e40af; color: white; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 600; font-size: 14px; display: inline-block; box-shadow: 0 2px 4px rgba(30, 64, 175, 0.2);">
-                Access CMS Portal
+                Go to Dashboard
               </a>
             </div>
           </div>
@@ -183,13 +183,13 @@ export const sendL1RequestEmails = async (changeNo, hodApproval, changeIn, reque
           <div style="padding: 24px;">
             <h2 style="margin-top: 0; color: #1e293b; font-size: 18px; font-weight: 600;">Hello ${l1Details.request_by || 'Requester'},</h2>
             <p style="color: #475569; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
-              Your <strong>L1 Change Request</strong> has been successfully submitted and is now awaiting validation.
+              L1 Change Request has been successfully submitted and is now awaiting validation.
             </p>
             <div style="background-color: #f0fdf4; border-left: 4px solid #10b981; padding: 16px; margin-bottom: 24px; border-radius: 4px;">
               <div style="font-size: 12px; text-transform: uppercase; color: #15803d; font-weight: 600; letter-spacing: 0.5px;">Submission Status</div>
               <div style="font-size: 16px; font-weight: 700; color: #166534; margin-top: 4px;">Pending HOD Approval</div>
               <p style="margin: 6px 0 0 0; font-size: 13px; color: #166534; line-height: 1.4;">
-                Your request is queued for HOD review from: <strong>${selectedDepts.join(', ')}</strong>.
+                The request is queued for HOD review from: <strong>${selectedDepts.join(', ')}</strong>.
               </p>
             </div>
             
@@ -318,8 +318,8 @@ export const createL1DecisionNotifications = async (connection, changeNo, hodDep
       const isApp = status === 'Approved';
       const actionTitle = isApp ? `L1 Approved - Proceed to L2 Validation` : `L1 Rejected – ${changeNo}`;
       const actionDetails = isApp 
-        ? `Your Change Request ${changeNo} has been approved by the HOD (Status: L1 Approved). The next process is L2 Requester Validation (Requester uploads setup validation documentation).`
-        : `Your Change Request ${changeNo} has been rejected by the HOD (Status: L1 Rejected). Please review the remarks.`;
+        ? `Change Request ${changeNo} has been approved by the HOD (Status: L1 Approved). The next process is L2 Requester Validation (Requester uploads setup validation documentation).`
+        : `Change Request ${changeNo} has been rejected by the HOD (Status: L1 Rejected). Please review the remarks.`;
       const actionColor = isApp ? 'blue' : 'red';
       const notifPrefix = isApp ? 'L2-ACTION' : 'L1-REJECT-ACTION';
 
@@ -428,7 +428,7 @@ export const sendL1DecisionEmails = async (changeNo, hodDept, status, remarks, c
           
           <div style="text-align: center; margin: 32px 0 12px 0;">
             <a href="${process.env.APP_URL || 'http://localhost:5173'}" style="background-color: #1e40af; color: white; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 600; font-size: 14px; display: inline-block; box-shadow: 0 2px 4px rgba(30, 64, 175, 0.2);">
-              Access CMS Portal
+              Go to Dashboard
             </a>
           </div>
         </div>

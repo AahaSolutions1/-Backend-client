@@ -1,5 +1,6 @@
 import * as l2Model from '../models/l2Model.js';
 import pool from '../config/db.js';
+import { validateLimits } from '../utils/validation.js';
 
 export const getL2ValidationLogs = async (req, res) => {
   try {
@@ -12,6 +13,11 @@ export const getL2ValidationLogs = async (req, res) => {
 };
 
 export const createL2ValidationLog = async (req, res) => {
+  const lengthError = validateLimits(req.body);
+  if (lengthError) {
+    return res.status(400).json({ error: lengthError });
+  }
+
   const { logData, attachments } = req.body;
   const userEmail = req.user?.email;
 
@@ -20,6 +26,15 @@ export const createL2ValidationLog = async (req, res) => {
   }
 
   try {
+    // Check if the change request is Closed
+    const [closedRows] = await pool.query(
+      `SELECT qa_approval FROM effectiveness_logs WHERE change_no = ?`,
+      [logData.changeNo]
+    );
+    if (closedRows.length > 0 && closedRows[0].qa_approval === 'Approved') {
+      return res.status(403).json({ error: 'Access Denied: The change request is Closed and cannot be modified.' });
+    }
+
     let isQuality = false;
     let isQualityOrAdmin = false;
     let isRequester = false;
@@ -31,7 +46,7 @@ export const createL2ValidationLog = async (req, res) => {
         const user = userRows[0];
         const dept = (user.department || '').toLowerCase();
         const role = (user.role || '').toLowerCase();
-        isQuality = dept === 'quality' || dept === 'qad' || dept === 'qa';
+        isQuality = dept === 'qad';
         isAdmin = role === 'admin' || role === 'administrator';
         isQualityOrAdmin = isAdmin || isQuality;
       }
@@ -46,7 +61,7 @@ export const createL2ValidationLog = async (req, res) => {
 
       if (!isQualityOrAdmin && !isRequester) {
         return res.status(403).json({
-          error: 'Access Denied: L2 validation can only be submitted by the person who raised the change request or Quality department members.'
+          error: 'Access Denied: L2 validation can only be submitted by the person who raised the change request or QAD department members.'
         });
       }
     }
@@ -89,17 +104,18 @@ export const createL2ValidationLog = async (req, res) => {
     if (existingL2.length > 0) {
       const current = existingL2[0];
       
-      if (current.status === 'Accepted') {
+      if (current.status === 'Accepted' && !isAdmin) {
         return res.status(403).json({ error: 'Access Denied: L2 validation has already been Accepted and cannot be modified.' });
       }
 
       const hasNewPedAttachment = attachments && attachments.some(a => a.fieldName === 'weld_test');
-      if (current.status === 'Rejected' && !hasNewPedAttachment) {
+      if (current.status === 'Rejected' && !hasNewPedAttachment && !isAdmin) {
         return res.status(403).json({ error: 'Access Denied: L2 validation has already been Rejected. Requester must upload a new validation attachment to reset the status before it can be updated.' });
       }
       
       if (current.status === 'Pending' && !isQualityOrAdmin) {
-        if (attachments && attachments.some(a => a.fieldName === 'weld_test')) {
+        const hasPedFile = current.weld_test && current.weld_test !== '-';
+        if (hasPedFile && attachments && attachments.some(a => a.fieldName === 'weld_test')) {
           return res.status(403).json({ error: 'Access Denied: L2 Requester Validation attachment is already uploaded and awaiting QA review.' });
         }
       }
@@ -117,7 +133,7 @@ export const createL2ValidationLog = async (req, res) => {
         if ((logData.status && logData.status !== allowedStatus) || 
             (logData.remarks && logData.remarks !== current.remarks) || 
             (attachments && attachments.some(a => a.fieldName === 'qa_test'))) {
-          return res.status(403).json({ error: 'Access Denied: Only Quality department members or Admins are allowed to update L2 validation status, remarks, or QA attachments.' });
+          return res.status(403).json({ error: 'Access Denied: Only QAD department members or Admins are allowed to update L2 validation status, remarks, or QA attachments.' });
         }
       }
       
@@ -133,7 +149,7 @@ export const createL2ValidationLog = async (req, res) => {
         logData.status = 'Pending';
         logData.remarks = '';
         if (attachments && attachments.some(a => a.fieldName === 'qa_test')) {
-          return res.status(403).json({ error: 'Access Denied: Only Quality department members or Admins are allowed to upload QA attachments.' });
+          return res.status(403).json({ error: 'Access Denied: Only QAD department members or Admins are allowed to upload QA attachments.' });
         }
       }
     }

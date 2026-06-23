@@ -35,25 +35,3 @@ export const markAllRead = async (req, res) => {
     res.status(500).json({ error: 'Failed to mark notifications read.' });
   }
 };
-
-export const deleteNotification = async (req, res) => {
-  const { id } = req.params;
-  try {
-    await notificationModel.deleteNotification(id);
-    res.status(200).json({ message: 'Notification deleted.' });
-  } catch (error) {
-    console.error('Error in deleteNotification controller:', error);
-    res.status(500).json({ error: 'Failed to delete notification.' });
-  }
-};
-
-export const clearRead = async (req, res) => {
-  try {
-    const { email, role } = req.user;
-    await notificationModel.clearRead(email, role);
-    res.status(200).json({ message: 'Read notifications cleared.' });
-  } catch (error) {
-    console.error('Error in clearRead controller:', error);
-    res.status(500).json({ error: 'Failed to clear read notifications.' });
-  }
-};

@@ -1,11 +1,26 @@
 import * as l1Model from '../models/l1Model.js';
+import { validateLimits } from '../utils/validation.js';
 
 export const createL1Request = async (req, res) => {
   const { l1Data, attachments } = req.body;
   const userEmail = req.user?.email || 'unknown@cms.com';
 
+  const lengthError = validateLimits(req.body);
+  if (lengthError) {
+    return res.status(400).json({ error: lengthError });
+  }
+
   if (!l1Data || !l1Data.changeNo || !l1Data.unit || !l1Data.dept || !l1Data.context || !l1Data.description) {
     return res.status(400).json({ error: 'Required L1 change request data fields are missing.' });
+  }
+
+  const changeIn = l1Data.changeIn || 'General';
+  const constructedTitle = `[L1 Request - ${changeIn}] ${l1Data.context}`;
+  if (constructedTitle.length > 255) {
+    const excess = constructedTitle.length - 255;
+    return res.status(400).json({ 
+      error: `The Context of Change is too long. Please shorten it by at least ${excess} characters to fit database limits.`
+    });
   }
 
   try {

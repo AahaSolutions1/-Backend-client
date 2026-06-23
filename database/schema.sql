@@ -3,6 +3,8 @@
 -- MySQL
 -- -------------------------------------------------------------
 
+SET FOREIGN_KEY_CHECKS = 0;
+
 -- Drop tables if they already exist (for clean initialization)
 DROP TABLE IF EXISTS hod_approvals;
 DROP TABLE IF EXISTS notifications;
@@ -89,7 +91,7 @@ INSERT INTO roles (name) VALUES
 INSERT INTO departments (name) VALUES
 ('General'),
 ('PED'),
-('Quality'),
+('QAD'),
 ('Production'),
 ('Maintenance'),
 ('PC & L'),
@@ -106,9 +108,6 @@ INSERT INTO processes (name) VALUES
 ('EOL'),
 ('Pott'),
 ('Load');
-
-
-
 
 
 -- Seed users (quick-login roles matching mockup)
@@ -128,9 +127,10 @@ CREATE TABLE effectiveness_logs (
     start_date DATE NOT NULL,
     month_wise VARCHAR(20) NOT NULL DEFAULT '',
     remarks TEXT,
-    attachment VARCHAR(255) NOT NULL DEFAULT '',
+    attachment TEXT NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT '',
     qa_approval VARCHAR(50) NOT NULL DEFAULT '',
+    qa_update_count INT NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (change_no) REFERENCES change_requests(id) ON UPDATE CASCADE ON DELETE CASCADE
 );
@@ -152,7 +152,7 @@ CREATE TABLE notifications (
     title VARCHAR(255) NOT NULL,
     details TEXT NOT NULL,
     change_no VARCHAR(50) NOT NULL DEFAULT '',
-    category VARCHAR(50) NOT NULL DEFAULT '',
+    category VARCHAR(255) NOT NULL DEFAULT '',
     dept VARCHAR(100) NOT NULL DEFAULT '',
     time_str VARCHAR(100) NOT NULL DEFAULT '',
     is_read BOOLEAN NOT NULL DEFAULT FALSE,
@@ -179,7 +179,7 @@ CREATE TABLE l1_requests (
     process_name VARCHAR(100) NOT NULL,
     process_line VARCHAR(100) NOT NULL,
     machine_no VARCHAR(100) NOT NULL,
-    description TEXT NOT NULL,
+    description LONGTEXT NOT NULL,
     improvement_area VARCHAR(100) NOT NULL,
     change_type VARCHAR(100) NOT NULL,
     date_start DATE,
@@ -191,13 +191,13 @@ CREATE TABLE l1_requests (
     hod_approval TEXT NOT NULL,
     customer_approval VARCHAR(100) NOT NULL,
     effectiveness_monitoring TEXT NOT NULL,
-    file_desc VARCHAR(255) NOT NULL DEFAULT '',
-    file_improvement VARCHAR(255) NOT NULL DEFAULT '',
-    file_trace_from VARCHAR(255) NOT NULL DEFAULT '',
-    file_trace_to VARCHAR(255) NOT NULL DEFAULT '',
-    file_risk VARCHAR(255) NOT NULL DEFAULT '',
-    file_sop VARCHAR(255) NOT NULL DEFAULT '',
-    file_effectiveness VARCHAR(255) NOT NULL DEFAULT '',
+    file_desc TEXT NOT NULL,
+    file_improvement TEXT NOT NULL,
+    file_trace_from TEXT NOT NULL,
+    file_trace_to TEXT NOT NULL,
+    file_risk TEXT NOT NULL,
+    file_sop TEXT NOT NULL,
+    file_effectiveness TEXT NOT NULL,
     improvement_table_data LONGTEXT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (change_no) REFERENCES change_requests(id) ON UPDATE CASCADE ON DELETE CASCADE
@@ -220,8 +220,8 @@ CREATE TABLE l2_validation_logs (
     change_no VARCHAR(50) PRIMARY KEY,
     validation_date VARCHAR(50) NOT NULL,
     requester VARCHAR(255) NOT NULL,
-    weld_test VARCHAR(255) NOT NULL DEFAULT '',
-    qa_test VARCHAR(255) NOT NULL DEFAULT '',
+    weld_test TEXT NOT NULL,
+    qa_test TEXT NOT NULL,
     status VARCHAR(50) NOT NULL,
     remarks TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -246,7 +246,7 @@ CREATE TABLE l3_approvals (
     date VARCHAR(50) NOT NULL,
     requester VARCHAR(255) NOT NULL,
     ped VARCHAR(50) NOT NULL DEFAULT 'Pending',
-    quality VARCHAR(50) NOT NULL DEFAULT 'Pending',
+    qad VARCHAR(50) NOT NULL DEFAULT 'Pending',
     production VARCHAR(50) NOT NULL DEFAULT 'Pending',
     maintenance VARCHAR(50) NOT NULL DEFAULT 'Pending',
     pcl VARCHAR(50) NOT NULL DEFAULT 'Pending',
@@ -272,3 +272,5 @@ CREATE TABLE hod_approvals (
     UNIQUE KEY uk_change_dept (change_no, hod_dept),
     FOREIGN KEY (change_no) REFERENCES change_requests(id) ON UPDATE CASCADE ON DELETE CASCADE
 );
+
+SET FOREIGN_KEY_CHECKS = 1;

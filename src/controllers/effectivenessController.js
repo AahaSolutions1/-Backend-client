@@ -1,5 +1,6 @@
 import * as effectivenessModel from '../models/effectivenessModel.js';
 import pool from '../config/db.js';
+import { validateLimits } from '../utils/validation.js';
 
 const checkCanUpdate = async (email) => {
   if (!email) return false;
@@ -9,7 +10,7 @@ const checkCanUpdate = async (email) => {
     const dept = (user.department || '').toLowerCase();
     const role = (user.role || '').toLowerCase();
     const isAdmin = role === 'admin' || role === 'administrator';
-    const isQADept = dept === 'quality' || dept === 'qad' || dept === 'qa';
+    const isQADept = dept === 'qad';
     return isAdmin || isQADept;
   }
   return false;
@@ -19,7 +20,8 @@ const checkCanUpdate = async (email) => {
 
 export const getLogs = async (req, res) => {
   try {
-    const list = await effectivenessModel.getLogs();
+    const { tab } = req.query;
+    const list = await effectivenessModel.getLogs(tab);
     res.status(200).json(list);
   } catch (error) {
     console.error('Error in getLogs:', error);
@@ -27,7 +29,22 @@ export const getLogs = async (req, res) => {
   }
 };
 
+export const getCounts = async (req, res) => {
+  try {
+    const counts = await effectivenessModel.getCounts();
+    res.status(200).json(counts);
+  } catch (error) {
+    console.error('Error in getCounts:', error);
+    res.status(500).json({ error: 'Failed to fetch effectiveness counts' });
+  }
+};
+
 export const createLog = async (req, res) => {
+  const lengthError = validateLimits(req.body);
+  if (lengthError) {
+    return res.status(400).json({ error: lengthError });
+  }
+
   const { logData, attachments } = req.body;
 
   if (!logData || !logData.id || !logData.changeNo) {
@@ -37,7 +54,7 @@ export const createLog = async (req, res) => {
   try {
     const canUpdate = await checkCanUpdate(req.user?.email);
     if (!canUpdate) {
-      return res.status(403).json({ error: 'Access Denied: Only authorized users in the Quality (QA) department and Administrators are allowed to create effectiveness logs.' });
+      return res.status(403).json({ error: 'Access Denied: Only authorized users in the QAD (QA) department and Administrators are allowed to create effectiveness logs.' });
     }
 
     const [existing] = await pool.query('SELECT id FROM effectiveness_logs WHERE change_no = ?', [logData.changeNo]);
@@ -60,6 +77,11 @@ export const createLog = async (req, res) => {
 };
 
 export const updateLog = async (req, res) => {
+  const lengthError = validateLimits(req.body);
+  if (lengthError) {
+    return res.status(400).json({ error: lengthError });
+  }
+
   const { id } = req.params;
   const { logData, attachments } = req.body;
 
@@ -68,12 +90,34 @@ export const updateLog = async (req, res) => {
   }
 
   try {
-    const canUpdate = await checkCanUpdate(req.user?.email);
-    if (!canUpdate) {
-      return res.status(403).json({ error: 'Access Denied: Only authorized users in the Quality (QA) department and Administrators are allowed to update effectiveness logs.' });
+    const [logRows] = await pool.query('SELECT qa_approval FROM effectiveness_logs WHERE id = ?', [id]);
+    if (logRows.length > 0 && logRows[0].qa_approval === 'Approved') {
+      return res.status(403).json({ error: 'Access Denied: This effectiveness log is Closed and cannot be updated.' });
     }
 
-    const updated = await effectivenessModel.updateLog(id, logData, attachments);
+    const [userRows] = await pool.query('SELECT department, role FROM users WHERE email = ?', [req.user?.email]);
+    if (userRows.length === 0) {
+      return res.status(403).json({ error: 'Access Denied: User not found.' });
+    }
+    const user = userRows[0];
+    const dept = (user.department || '').toLowerCase();
+    const role = (user.role || '').toLowerCase();
+    const isAdmin = role === 'admin' || role === 'administrator';
+    const isQADept = dept === 'qad';
+
+    if (!isAdmin && !isQADept) {
+      return res.status(403).json({ error: 'Access Denied: Only authorized users in the QAD (QA) department and Administrators are allowed to update effectiveness logs.' });
+    }
+
+    if (!isAdmin && isQADept) {
+      const [logRows] = await pool.query('SELECT qa_update_count FROM effectiveness_logs WHERE id = ?', [id]);
+      if (logRows.length > 0 && logRows[0].qa_update_count >= 1) {
+        return res.status(403).json({ error: 'Access Denied: QA users are only allowed to update an effectiveness log once. Unlimited updates are allowed for Administrators.' });
+      }
+    }
+
+    const isQaUser = !isAdmin && isQADept;
+    const updated = await effectivenessModel.updateLog(id, logData, attachments, isQaUser);
     res.status(200).json({
       message: 'Effectiveness log updated successfully',
       log: updated
@@ -88,6 +132,11 @@ export const deleteLog = async (req, res) => {
   const { id } = req.params;
 
   try {
+    const [logRows] = await pool.query('SELECT qa_approval FROM effectiveness_logs WHERE id = ?', [id]);
+    if (logRows.length > 0 && logRows[0].qa_approval === 'Approved') {
+      return res.status(403).json({ error: 'Access Denied: This effectiveness log is Closed and cannot be deleted.' });
+    }
+
     const canUpdate = await checkCanUpdate(req.user?.email);
     if (!canUpdate) {
       return res.status(403).json({ error: 'Access Denied: Only authorized users in the Quality (QA) department and Administrators are allowed to delete effectiveness logs.' });
