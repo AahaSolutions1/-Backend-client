@@ -1,6 +1,6 @@
 import pool from '../config/db.js';
 import { broadcast } from '../config/websocket.js';
-import { triggerEffectivenessQAAlert } from './effectivenessNotificationModel.js';
+import { triggerEffectivenessQADAlert } from './effectivenessNotificationModel.js';
 
 // Self-healing: Ensure effectiveness tables exist on load
 const ensureTablesExist = async () => {
@@ -181,8 +181,8 @@ export const createLog = async (logData, attachments) => {
     broadcast({ type: 'REFRESH_CHANGES' });
 
     if (qaApproval === 'Approved' || qaApproval === 'Rejected') {
-      triggerEffectivenessQAAlert(changeNo, qaApproval, remarks).catch(err =>
-        console.error('Error triggering effectiveness QA alert in createLog:', err)
+      triggerEffectivenessQADAlert(changeNo, qaApproval, remarks).catch(err =>
+        console.error('Error triggering effectiveness QAD alert in createLog:', err)
       );
     }
 
@@ -258,8 +258,8 @@ export const updateLog = async (id, logData, attachments, isQaUser = false) => {
     broadcast({ type: 'REFRESH_CHANGES' });
 
     if ((qaApproval === 'Approved' || qaApproval === 'Rejected') && changeNo) {
-      triggerEffectivenessQAAlert(changeNo, qaApproval, remarks).catch(err =>
-        console.error('Error triggering effectiveness QA alert in updateLog:', err)
+      triggerEffectivenessQADAlert(changeNo, qaApproval, remarks).catch(err =>
+        console.error('Error triggering effectiveness QAD alert in updateLog:', err)
       );
     }
     

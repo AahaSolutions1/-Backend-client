@@ -4,9 +4,9 @@ import { broadcast } from '../config/websocket.js';
 
 /**
  * Sends DB notifications and emails to requester, all HODs, and admins
- * when QA effectiveness evaluation is decided (Approved or Rejected).
+ * when QAD effectiveness evaluation is decided (Approved or Rejected).
  */
-export const triggerEffectivenessQAAlert = async (changeNo, qaApproval, remarks) => {
+export const triggerEffectivenessQADAlert = async (changeNo, qaApproval, remarks) => {
   try {
     // 1. Fetch requester email and change request details
     const [crRows] = await pool.query(
@@ -50,17 +50,17 @@ export const triggerEffectivenessQAAlert = async (changeNo, qaApproval, remarks)
     const remarksBg = isApproved ? '#f0fdf4' : '#fef2f2';
 
     // 3. Create a notification in the DB for each target user specifically (no department broadcast)
-    const title = `Effectiveness QA ${qaApproval} – ${changeNo}`;
-    const details = `The effectiveness monitoring observations for Change Request ${changeNo} have been ${qaApproval} by QA. Remarks: ${remarks}`;
+    const title = `Effectiveness QAD ${qaApproval} – ${changeNo}`;
+    const details = `The effectiveness monitoring observations for Change Request ${changeNo} have been ${qaApproval} by QAD. Remarks: ${remarks}`;
     const now = new Date();
     const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} Today`;
 
     for (const email of recipientEmails) {
-      const personalNotifId = `EFF-QA-${qaApproval.toUpperCase()}-${changeNo}-${email.replace(/[@.]/g, '_')}-${Date.now()}`;
+      const personalNotifId = `EFF-QAD-${qaApproval.toUpperCase()}-${changeNo}-${email.replace(/[@.]/g, '_')}-${Date.now()}`;
       await pool.query(
         `INSERT INTO notifications (id, title, details, change_no, category, dept, time_str, is_read, type, color, recipient_email)
-         VALUES (?, ?, ?, ?, 'SYSTEM', ?, ?, FALSE, 'Action Required', ?, ?)`,
-        [personalNotifId, title, details, changeNo, cr.dept || 'General', timeStr, color, email]
+         VALUES (?, ?, ?, ?, 'SYSTEM', 'QAD', ?, FALSE, 'Action Required', ?, ?)`,
+        [personalNotifId, title, details, changeNo, timeStr, color, email]
       );
     }
 
@@ -83,7 +83,7 @@ export const triggerEffectivenessQAAlert = async (changeNo, qaApproval, remarks)
             <div style="font-size: 12px; text-transform: uppercase; color: ${remarksTextColor}; font-weight: 600; letter-spacing: 0.5px;">Evaluation Status</div>
             <div style="font-size: 18px; font-weight: 700; color: ${remarksTextColor}; margin-top: 4px;">Effectiveness: ${qaApproval.toUpperCase()}</div>
             <p style="margin: 6px 0 0 0; font-size: 13.5px; color: #334155; line-height: 1.5;">
-              <strong>QA Decision comments / remarks:</strong><br />
+              <strong>QAD Decision comments / remarks:</strong><br />
               ${remarks || 'No remarks provided.'}
             </p>
           </div>
@@ -104,7 +104,7 @@ export const triggerEffectivenessQAAlert = async (changeNo, qaApproval, remarks)
           </div>
         </div>
         <div style="background-color: #f8fafc; padding: 16px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9;">
-          This is an automated notification from the Nippon QA 4M Change Management System.<br />
+          This is an automated notification from the Nippon QAD 4M Change Management System.<br />
           Please do not reply directly to this email.
         </div>
       </div>
@@ -117,11 +117,11 @@ export const triggerEffectivenessQAAlert = async (changeNo, qaApproval, remarks)
           to: email,
           subject: `[4M-CMS] Status Update: Effectiveness Evaluation ${qaApproval} for ${changeNo}`,
           html: emailContent,
-          text: `Effectiveness Evaluation ${qaApproval} for Change Request ${changeNo}\n\nQA Comments: ${remarks}`
+          text: `Effectiveness Evaluation ${qaApproval} for Change Request ${changeNo}\n\nQAD Comments: ${remarks}`
         });
       }
     }
   } catch (error) {
-    console.error('Error triggering effectiveness QA alert:', error);
+    console.error('Error triggering effectiveness QAD alert:', error);
   }
 };

@@ -101,13 +101,6 @@ INSERT INTO departments (name) VALUES
 ('Safety'),
 ('Unit Head');
 
--- Seed Processes
-INSERT INTO processes (name) VALUES
-('Wind'),
-('Gold'),
-('EOL'),
-('Pott'),
-('Load');
 
 
 -- Seed users (quick-login roles matching mockup)

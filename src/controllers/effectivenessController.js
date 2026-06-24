@@ -54,7 +54,7 @@ export const createLog = async (req, res) => {
   try {
     const canUpdate = await checkCanUpdate(req.user?.email);
     if (!canUpdate) {
-      return res.status(403).json({ error: 'Access Denied: Only authorized users in the QAD (QA) department and Administrators are allowed to create effectiveness logs.' });
+      return res.status(403).json({ error: 'Access Denied: Only authorized users in the QAD department and Administrators are allowed to create effectiveness logs.' });
     }
 
     const [existing] = await pool.query('SELECT id FROM effectiveness_logs WHERE change_no = ?', [logData.changeNo]);
@@ -106,13 +106,13 @@ export const updateLog = async (req, res) => {
     const isQADept = dept === 'qad';
 
     if (!isAdmin && !isQADept) {
-      return res.status(403).json({ error: 'Access Denied: Only authorized users in the QAD (QA) department and Administrators are allowed to update effectiveness logs.' });
+      return res.status(403).json({ error: 'Access Denied: Only authorized users in the QAD department and Administrators are allowed to update effectiveness logs.' });
     }
 
     if (!isAdmin && isQADept) {
       const [logRows] = await pool.query('SELECT qa_update_count FROM effectiveness_logs WHERE id = ?', [id]);
       if (logRows.length > 0 && logRows[0].qa_update_count >= 1) {
-        return res.status(403).json({ error: 'Access Denied: QA users are only allowed to update an effectiveness log once. Unlimited updates are allowed for Administrators.' });
+        return res.status(403).json({ error: 'Access Denied: QAD users are only allowed to update an effectiveness log once. Unlimited updates are allowed for Administrators.' });
       }
     }
 
@@ -139,7 +139,7 @@ export const deleteLog = async (req, res) => {
 
     const canUpdate = await checkCanUpdate(req.user?.email);
     if (!canUpdate) {
-      return res.status(403).json({ error: 'Access Denied: Only authorized users in the Quality (QA) department and Administrators are allowed to delete effectiveness logs.' });
+      return res.status(403).json({ error: 'Access Denied: Only authorized users in the QAD department and Administrators are allowed to delete effectiveness logs.' });
     }
 
     await effectivenessModel.deleteLog(id);

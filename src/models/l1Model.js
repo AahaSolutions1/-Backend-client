@@ -60,6 +60,16 @@ export const addL1Request = async (l1Data, attachments, userEmail) => {
       [resolvedChangeNo, title, requesterEmail, priority, status]
     );
 
+    // Auto-populate processes/machines tables if the submitted values do not exist
+    if (processName && processName.trim()) {
+      const trimmedProcess = processName.trim();
+      await connection.query('INSERT IGNORE INTO processes (name) VALUES (?)', [trimmedProcess]);
+    }
+    if (machineNo && machineNo.trim()) {
+      const trimmedMachine = machineNo.trim();
+      await connection.query('INSERT IGNORE INTO machines (name) VALUES (?)', [trimmedMachine]);
+    }
+
     const serializedTableData = improvementTableData ? JSON.stringify(improvementTableData) : null;
 
     await connection.query(

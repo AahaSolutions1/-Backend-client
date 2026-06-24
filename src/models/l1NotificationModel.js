@@ -157,7 +157,7 @@ export const sendL1RequestEmails = async (changeNo, hodApproval, changeIn, reque
             </div>
           </div>
           <div style="background-color: #f8fafc; padding: 16px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9;">
-            This is an automated notification from the Nippon QA 4M Change Management System.<br />
+            This is an automated notification from the Nippon QAD 4M Change Management System.<br />
             Please do not reply directly to this email.
           </div>
         </div>
