@@ -37,6 +37,7 @@ if (useSMTP) {
 
 export const sendMail = async ({ to, bcc, subject, html, text }) => {
   try {
+    console.log(`Attempting to send email to: ${to}, subject: "${subject}"...`);
     const info = await transporter.sendMail({
       from: process.env.SMTP_FROM || '"Change Management System" <noreply@cms.com>',
       to,
@@ -48,7 +49,13 @@ export const sendMail = async ({ to, bcc, subject, html, text }) => {
     console.log(`Email successfully sent to ${to}${bcc ? ` (+ BCC: ${bcc})` : ''}: ${info.messageId}`);
     return info;
   } catch (error) {
-    console.error(`Failed to send email to ${to}:`, error);
+    console.error('\n================ EMAIL SENDING ERROR ================');
+    console.error(`Failed to send email to: ${to}`);
+    console.error(`Subject: ${subject}`);
+    console.error('Error Message:', error.message);
+    console.error('Full Error Details:', error);
+    if (error.response) console.error('SMTP Response:', error.response);
+    console.error('=====================================================\n');
     // Silent catch so SMTP failure does not crash requests/transactions
   }
 };
