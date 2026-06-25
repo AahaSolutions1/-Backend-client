@@ -72,8 +72,16 @@ export const createL2ValidationLog = async (req, res) => {
       [logData.changeNo]
     );
 
+    // Determine if the QAD creator is acting as the requester to upload attachment
+    let isActingAsRequester = false;
+    if (isRequester) {
+      if (!logData.status || (logData.status !== 'Accepted' && logData.status !== 'Rejected')) {
+        isActingAsRequester = true;
+      }
+    }
+
     // Enforce mandatory L2 validation fields
-    if (isQualityOrAdmin) {
+    if (isQualityOrAdmin && !isActingAsRequester) {
       if (!logData.status || (logData.status !== 'Accepted' && logData.status !== 'Rejected')) {
         return res.status(400).json({ error: 'Validation status must be "Accepted" or "Rejected".' });
       }
@@ -92,7 +100,7 @@ export const createL2ValidationLog = async (req, res) => {
       if (!hasPedFile) {
         return res.status(400).json({ error: 'Requester Validation Attachment is required.' });
       }
-    } else if (isRequester) {
+    } else if (isRequester || (isQualityOrAdmin && isActingAsRequester)) {
       const hasPedFile = (attachments && attachments.some(a => a.fieldName === 'weld_test')) || 
                          (existingL2.length > 0 && existingL2[0].weld_test && existingL2[0].weld_test !== '-');
       if (!hasPedFile) {
@@ -120,20 +128,23 @@ export const createL2ValidationLog = async (req, res) => {
         }
       }
 
-      // If the user is NOT Quality/Admin, they are the requester.
+      // If the user is NOT Quality/Admin, or they are acting as the requester.
       // As the requester, if they upload a new PED attachment, the status MUST be reset to 'Pending'.
-      if (!isQualityOrAdmin) {
+      if (!isQualityOrAdmin || isActingAsRequester) {
         const hasNewPedAttachment = attachments && attachments.some(a => a.fieldName === 'weld_test');
         if (hasNewPedAttachment) {
           logData.status = 'Pending';
+          logData.remarks = '';
         }
 
         const allowedStatus = hasNewPedAttachment ? 'Pending' : current.status;
 
-        if ((logData.status && logData.status !== allowedStatus) || 
-            (logData.remarks && logData.remarks !== current.remarks) || 
-            (attachments && attachments.some(a => a.fieldName === 'qa_test'))) {
-          return res.status(403).json({ error: 'Access Denied: Only QAD department members or Admins are allowed to update L2 validation status, remarks, or QAD attachments.' });
+        if (!isQualityOrAdmin) {
+          if ((logData.status && logData.status !== allowedStatus) || 
+              (logData.remarks && logData.remarks !== current.remarks) || 
+              (attachments && attachments.some(a => a.fieldName === 'qa_test'))) {
+            return res.status(403).json({ error: 'Access Denied: Only QAD department members or Admins are allowed to update L2 validation status, remarks, or QAD attachments.' });
+          }
         }
       }
       
@@ -144,11 +155,11 @@ export const createL2ValidationLog = async (req, res) => {
         }
       }
     } else {
-      // For new log inserts, a non-Quality/Admin user cannot set status, remarks, or QAD files
-      if (!isQualityOrAdmin) {
+      // For new log inserts, a non-Quality/Admin user or someone acting as requester cannot set status, remarks, or QAD files
+      if (!isQualityOrAdmin || isActingAsRequester) {
         logData.status = 'Pending';
         logData.remarks = '';
-        if (attachments && attachments.some(a => a.fieldName === 'qa_test')) {
+        if (!isQualityOrAdmin && attachments && attachments.some(a => a.fieldName === 'qa_test')) {
           return res.status(403).json({ error: 'Access Denied: Only QAD department members or Admins are allowed to upload QAD attachments.' });
         }
       }
