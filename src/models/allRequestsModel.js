@@ -51,6 +51,17 @@ export const updateChangeDetails = async (changeNo, level, updateData, attachmen
     }
 
     if (level === 'l1') {
+      // Map L1 fields from camelCase to snake_case dynamically
+      const mappedData = {};
+      for (const [k, v] of Object.entries(cleanedData)) {
+        const snakeKey = k.replace(/([A-Z])/g, '_$1').toLowerCase();
+        mappedData[snakeKey] = v;
+      }
+      for (const k of Object.keys(cleanedData)) {
+        delete cleanedData[k];
+      }
+      Object.assign(cleanedData, mappedData);
+
       // Update title/priority in change_requests
       if (updateData.title !== undefined) {
         await connection.query('UPDATE change_requests SET title = ? WHERE id = ?', [updateData.title, changeNo]);
@@ -77,8 +88,8 @@ export const updateChangeDetails = async (changeNo, level, updateData, attachmen
       const l1Columns = [
         'unit', 'requested_time', 'change_in', 'dept', 'request_by',
         'process_name', 'process_line', 'machine_no', 'description',
-        'improvement_area', 'change_type', 'date_start', 'trace_from',
-        'date_close', 'trace_to', 'risk_analysis', 'sop_update',
+        'improvement_area', 'change_type', 'date_start', 'opening_quantity', 'trace_from',
+        'date_close', 'closed_quantity', 'trace_to', 'risk_analysis', 'sop_update',
         'hod_approval', 'customer_approval', 'effectiveness_monitoring',
         'file_desc', 'file_improvement', 'file_trace_from', 'file_trace_to',
         'file_risk', 'file_sop', 'file_effectiveness', 'improvement_table_data'

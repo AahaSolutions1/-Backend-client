@@ -8,7 +8,7 @@ import { broadcast } from '../config/websocket.js';
 export const createL3DecisionNotifications = async (connection, changeNo, updatedDeptField, newDecision, changeIn, requestBy, requester, l1Dept) => {
   const now = new Date();
   const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} Today`;
-  const color = newDecision === 'Approved' ? 'green' : 'red';
+  const color = (newDecision === 'Approved' || newDecision === 'Acknowledge') ? 'green' : 'red';
   const notifIdsToSend = [];
 
   // Fetch all users to notify HODs and admins
@@ -87,11 +87,12 @@ export const sendL3DecisionEmails = async (changeNo, updatedDeptField, newDecisi
     const emailList = [...recipientEmails].filter(Boolean);
     if (emailList.length === 0) return;
 
-    const themeColor = newDecision === 'Approved' ? '#10b981' : '#ef4444';
-    const bgLight = newDecision === 'Approved' ? '#f0fdf4' : '#fef2f2';
-    const badgeText = newDecision === 'Approved' ? 'L3 APPROVED' : 'L3 REJECTED';
-    const badgeTextColor = newDecision === 'Approved' ? '#15803d' : '#991b1b';
-    const borderLeftColor = newDecision === 'Approved' ? '#10b981' : '#ef4444';
+    const isApprovedOrAck = newDecision === 'Approved' || newDecision === 'Acknowledge';
+    const themeColor = isApprovedOrAck ? '#10b981' : '#ef4444';
+    const bgLight = isApprovedOrAck ? '#f0fdf4' : '#fef2f2';
+    const badgeText = newDecision === 'Approved' ? 'L3 APPROVED' : newDecision === 'Acknowledge' ? 'L3 ACKNOWLEDGED' : 'L3 REJECTED';
+    const badgeTextColor = isApprovedOrAck ? '#15803d' : '#991b1b';
+    const borderLeftColor = isApprovedOrAck ? '#10b981' : '#ef4444';
     const emailSubject = `[4M-CMS] Status Update: L3 Review ${newDecision} for ${changeNo}`;
 
     const emailHtml = `
@@ -109,7 +110,7 @@ export const sendL3DecisionEmails = async (changeNo, updatedDeptField, newDecisi
             <div style="font-size: 12px; text-transform: uppercase; color: ${badgeTextColor}; font-weight: 600; letter-spacing: 0.5px;">Review Status</div>
             <div style="font-size: 18px; font-weight: 700; color: ${badgeTextColor}; margin-top: 4px;">${badgeText} by ${updatedDeptField}</div>
             <p style="margin: 6px 0 0 0; font-size: 13.5px; color: #334155; line-height: 1.5;">
-              ${newDecision === 'Approved' ? 'This L3 reviewer HOD has approved the request. Once all L3 departments approve, the request proceeds.' : 'This L3 reviewer HOD has rejected the request. Please review the comments and feedback below.'}
+              ${isApprovedOrAck ? 'This L3 reviewer HOD has approved / acknowledged the request. Once all L3 departments approve, the request proceeds.' : 'This L3 reviewer HOD has rejected the request. Please review the comments and feedback below.'}
             </p>
           </div>
           

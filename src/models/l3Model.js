@@ -213,16 +213,16 @@ export const addL3ApprovalLog = async (logData) => {
     const hasRejection = rejectedDepts.length > 0;
 
     const isAllL3Approved = 
-      finalPed === 'Approved' &&
-      finalQad === 'Approved' &&
-      finalProduction === 'Approved' &&
-      finalMaintenance === 'Approved' &&
-      finalPcl === 'Approved' &&
-      finalMaterials === 'Approved' &&
-      finalMarketing === 'Approved' &&
-      finalHr === 'Approved' &&
-      finalSafety === 'Approved' &&
-      finalUnitHead === 'Approved';
+      (finalPed === 'Approved' || finalPed === 'Acknowledge') &&
+      (finalQad === 'Approved' || finalQad === 'Acknowledge') &&
+      (finalProduction === 'Approved' || finalProduction === 'Acknowledge') &&
+      (finalMaintenance === 'Approved' || finalMaintenance === 'Acknowledge') &&
+      (finalPcl === 'Approved' || finalPcl === 'Acknowledge') &&
+      (finalMaterials === 'Approved' || finalMaterials === 'Acknowledge') &&
+      (finalMarketing === 'Approved' || finalMarketing === 'Acknowledge') &&
+      (finalHr === 'Approved' || finalHr === 'Acknowledge') &&
+      (finalSafety === 'Approved' || finalSafety === 'Acknowledge') &&
+      (finalUnitHead === 'Approved' || finalUnitHead === 'Acknowledge');
 
     if (isAllL3Decided) {
       await connection.query(

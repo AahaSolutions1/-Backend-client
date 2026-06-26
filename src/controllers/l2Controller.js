@@ -38,12 +38,16 @@ export const createL2ValidationLog = async (req, res) => {
     let isQuality = false;
     let isQualityOrAdmin = false;
     let isRequester = false;
+    let isSameDepartment = false;
+    let isRequesterOrDeptMember = false;
     let isAdmin = false;
 
     if (userEmail) {
       const [userRows] = await pool.query('SELECT department, role FROM users WHERE email = ?', [userEmail]);
+      let userDept = '';
       if (userRows.length > 0) {
         const user = userRows[0];
+        userDept = user.department || '';
         const dept = (user.department || '').toLowerCase();
         const role = (user.role || '').toLowerCase();
         isQuality = dept === 'qad';
@@ -52,16 +56,31 @@ export const createL2ValidationLog = async (req, res) => {
       }
 
       const [crRows] = await pool.query(
-        'SELECT requester FROM change_requests WHERE id = ?',
+        `SELECT cr.requester as requesterEmail, 
+                COALESCE(NULLIF(l1.dept, ''), u.department) as requestDept
+         FROM change_requests cr
+         LEFT JOIN l1_requests l1 ON cr.id = l1.change_no
+         LEFT JOIN users u ON cr.requester = u.email
+         WHERE cr.id = ?`,
         [logData.changeNo]
       );
+      
+      const requesterEmail = crRows.length > 0 ? crRows[0].requesterEmail : '';
+      const requestDept = crRows.length > 0 ? crRows[0].requestDept : '';
+      
       isRequester =
-        crRows.length > 0 &&
-        crRows[0].requester?.toLowerCase().trim() === userEmail.toLowerCase().trim();
+        requesterEmail &&
+        requesterEmail.toLowerCase().trim() === userEmail.toLowerCase().trim();
+        
+      isSameDepartment = 
+        userDept && requestDept &&
+        userDept.toLowerCase().trim() === requestDept.toLowerCase().trim();
+        
+      isRequesterOrDeptMember = isRequester || isSameDepartment;
 
-      if (!isQualityOrAdmin && !isRequester) {
+      if (!isQualityOrAdmin && !isRequesterOrDeptMember) {
         return res.status(403).json({
-          error: 'Access Denied: L2 validation can only be submitted by the person who raised the change request or QAD department members.'
+          error: 'Access Denied: L2 validation can only be submitted by the person who raised the change request, department members, or QAD department members.'
         });
       }
     }
@@ -74,7 +93,7 @@ export const createL2ValidationLog = async (req, res) => {
 
     // Determine if the QAD creator is acting as the requester to upload attachment
     let isActingAsRequester = false;
-    if (isRequester) {
+    if (isRequesterOrDeptMember) {
       if (!logData.status || (logData.status !== 'Accepted' && logData.status !== 'Rejected')) {
         isActingAsRequester = true;
       }
@@ -100,7 +119,7 @@ export const createL2ValidationLog = async (req, res) => {
       if (!hasPedFile) {
         return res.status(400).json({ error: 'Requester Validation Attachment is required.' });
       }
-    } else if (isRequester || (isQualityOrAdmin && isActingAsRequester)) {
+    } else if (isRequesterOrDeptMember || (isQualityOrAdmin && isActingAsRequester)) {
       const hasPedFile = (attachments && attachments.some(a => a.fieldName === 'weld_test')) || 
                          (existingL2.length > 0 && existingL2[0].weld_test && existingL2[0].weld_test !== '-');
       if (!hasPedFile) {
@@ -148,10 +167,10 @@ export const createL2ValidationLog = async (req, res) => {
         }
       }
       
-      // Only the creator of the change request or Admins are allowed to update the PED attachment
-      if (!isRequester && !isAdmin) {
+      // Only the creator of the change request, department members, or Admins are allowed to update the PED attachment
+      if (!isRequesterOrDeptMember && !isAdmin) {
         if (attachments && attachments.some(a => a.fieldName === 'weld_test')) {
-          return res.status(403).json({ error: 'Access Denied: Only the creator of the change request or Admins are allowed to update the Requester Validation attachment.' });
+          return res.status(403).json({ error: 'Access Denied: Only the creator of the change request, department members, or Admins are allowed to update the Requester Validation attachment.' });
         }
       }
     } else {

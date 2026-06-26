@@ -26,6 +26,9 @@ export const addL1Request = async (l1Data, attachments, userEmail) => {
     fileRisk, fileSop, fileEffectiveness, improvementTableData
   } = l1Data;
 
+  const openingQuantity = l1Data.openingQuantity !== undefined ? l1Data.openingQuantity : l1Data.opening_quantity;
+  const closedQuantity = l1Data.closedQuantity !== undefined ? l1Data.closedQuantity : l1Data.closed_quantity;
+
   const status = 'Pending';
   const priority = 'High';
   const title = `[L1 Request - ${changeIn || 'General'}] ${context}`;
@@ -76,17 +79,17 @@ export const addL1Request = async (l1Data, attachments, userEmail) => {
       `INSERT INTO l1_requests (
         change_no, unit, requested_time, change_in, dept, request_by, 
         process_name, process_line, machine_no, description, 
-        improvement_area, change_type, date_start, trace_from, 
-        date_close, trace_to, risk_analysis, sop_update, 
+        improvement_area, change_type, date_start, opening_quantity, trace_from, 
+        date_close, closed_quantity, trace_to, risk_analysis, sop_update, 
         hod_approval, customer_approval, effectiveness_monitoring,
         file_desc, file_improvement, file_trace_from, file_trace_to,
         file_risk, file_sop, file_effectiveness, improvement_table_data
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         resolvedChangeNo, unit, requestedTime, changeIn || '', dept, requestBy,
         processName, processLine, machineNo, description,
-        improvementArea, changeType, formatDateToSql(dateStart), traceFrom,
-        formatDateToSql(dateClose), traceTo, riskAnalysis, sopUpdate,
+        improvementArea, changeType, formatDateToSql(dateStart), openingQuantity || null, traceFrom,
+        formatDateToSql(dateClose), closedQuantity || null, traceTo, riskAnalysis, sopUpdate,
         hodApproval, customerApproval, effectivenessMonitoring,
         fileDesc || '', fileImprovement || '', fileTraceFrom || '', fileTraceTo || '',
         fileRisk || '', fileSop || '', fileEffectiveness || '',
@@ -159,7 +162,7 @@ export const getL1Details = async (changeNo) => {
     `SELECT cr.title, cr.requester as crRequester, DATE_FORMAT(cr.date, '%Y-%m-%d') as crDate, cr.priority, cr.status as crStatus,
             l1.change_no, l1.unit, l1.requested_time, l1.change_in,
             l1.process_name, l1.process_line, l1.machine_no, l1.description,
-            l1.improvement_area, l1.change_type, l1.trace_from, l1.trace_to,
+            l1.improvement_area, l1.change_type, l1.opening_quantity, l1.trace_from, l1.closed_quantity, l1.trace_to,
             l1.risk_analysis, l1.sop_update, l1.hod_approval, l1.customer_approval,
             l1.effectiveness_monitoring, l1.file_desc, l1.file_improvement,
             l1.file_trace_from, l1.file_trace_to, l1.file_risk, l1.file_sop,

@@ -2,9 +2,9 @@
 -- Database Schema for Change Management System (CMS.io)
 -- MySQL
 -- -------------------------------------------------------------
-
+ 
 SET FOREIGN_KEY_CHECKS = 0;
-
+ 
 -- Drop tables if they already exist (for clean initialization)
 DROP TABLE IF EXISTS hod_approvals;
 DROP TABLE IF EXISTS notifications;
@@ -21,31 +21,31 @@ DROP TABLE IF EXISTS roles;
 DROP TABLE IF EXISTS departments;
 DROP TABLE IF EXISTS processes;
 DROP TABLE IF EXISTS machines;
-
+ 
 -- Roles Table
 CREATE TABLE roles (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) UNIQUE NOT NULL
 );
-
+ 
 -- Departments Table
 CREATE TABLE departments (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) UNIQUE NOT NULL
 );
-
+ 
 -- Processes Table
 CREATE TABLE processes (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) UNIQUE NOT NULL
 );
-
+ 
 -- Machines Table
 CREATE TABLE machines (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) UNIQUE NOT NULL
 );
-
+ 
 -- 1. Users Table
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -57,10 +57,10 @@ CREATE TABLE users (
     status VARCHAR(50) NOT NULL DEFAULT 'Active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
+ 
 -- Create index on email for fast authentication lookups
 CREATE INDEX idx_users_email ON users(email);
-
+ 
 -- 2. Change Requests Table
 CREATE TABLE change_requests (
     id VARCHAR(50) PRIMARY KEY, -- e.g. 'CHG-8902'
@@ -72,21 +72,21 @@ CREATE TABLE change_requests (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (requester) REFERENCES users(email) ON UPDATE CASCADE ON DELETE RESTRICT
 );
-
+ 
 -- Create index on status and requester for filtering/lookups
 CREATE INDEX idx_change_requests_status ON change_requests(status);
 CREATE INDEX idx_change_requests_requester ON change_requests(requester);
-
+ 
 -- -------------------------------------------------------------
 -- Seed Data
 -- -------------------------------------------------------------
-
+ 
 -- Seed Roles
 INSERT INTO roles (name) VALUES
 ('Admin'),
 ('User'),
 ('Hod');
-
+ 
 -- Seed Departments
 INSERT INTO departments (name) VALUES
 ('General'),
@@ -100,17 +100,16 @@ INSERT INTO departments (name) VALUES
 ('HR'),
 ('Safety'),
 ('Unit Head');
-
-
-
+ 
+ 
+ 
 -- Seed users (quick-login roles matching mockup)
 INSERT INTO users (email, password, role, name, department, status) VALUES
-('suriya.p@plant.com', 'suriya123', 'Admin', 'Suriya Prabakaran', 'General', 'Active'),
 ('suriyaiyyanar10@gmail.com', 'admin123', 'Admin', 'Admin User', 'General', 'Active');
 
 -- No initial change requests seeded
-
-
+ 
+ 
 -- 3. Effectiveness Logs Table
 CREATE TABLE effectiveness_logs (
     id VARCHAR(50) PRIMARY KEY, -- e.g. 'EFF-001'
@@ -127,7 +126,7 @@ CREATE TABLE effectiveness_logs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (change_no) REFERENCES change_requests(id) ON UPDATE CASCADE ON DELETE CASCADE
 );
-
+ 
 -- 4. Effectiveness Attachments Table
 CREATE TABLE effectiveness_attachments (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -138,7 +137,7 @@ CREATE TABLE effectiveness_attachments (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (log_id) REFERENCES effectiveness_logs(id) ON UPDATE CASCADE ON DELETE CASCADE
 );
-
+ 
 -- 5. Notifications Table
 CREATE TABLE notifications (
     id VARCHAR(255) PRIMARY KEY,
@@ -154,13 +153,13 @@ CREATE TABLE notifications (
     recipient_email VARCHAR(255) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
+ 
 -- No initial notifications seeded
-
+ 
 -- No initial effectiveness logs seeded
-
+ 
 -- No initial effectiveness attachments seeded
-
+ 
 -- 6. L1 Requests Table
 CREATE TABLE l1_requests (
     change_no VARCHAR(50) PRIMARY KEY,
@@ -176,8 +175,10 @@ CREATE TABLE l1_requests (
     improvement_area VARCHAR(100) NOT NULL,
     change_type VARCHAR(100) NOT NULL,
     date_start DATE,
+    opening_quantity INT NULL,
     trace_from TEXT NOT NULL,
     date_close DATE,
+    closed_quantity INT NULL,
     trace_to TEXT NOT NULL,
     risk_analysis TEXT NOT NULL,
     sop_update TEXT NOT NULL,
@@ -195,7 +196,7 @@ CREATE TABLE l1_requests (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (change_no) REFERENCES change_requests(id) ON UPDATE CASCADE ON DELETE CASCADE
 );
-
+ 
 -- 6a. L1 Attachments Table
 CREATE TABLE l1_attachments (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -207,7 +208,7 @@ CREATE TABLE l1_attachments (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (change_no) REFERENCES l1_requests(change_no) ON UPDATE CASCADE ON DELETE CASCADE
 );
-
+ 
 -- 7. L2 Validation Logs Table
 CREATE TABLE l2_validation_logs (
     change_no VARCHAR(50) PRIMARY KEY,
@@ -220,7 +221,7 @@ CREATE TABLE l2_validation_logs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (change_no) REFERENCES change_requests(id) ON UPDATE CASCADE ON DELETE CASCADE
 );
-
+ 
 -- 7a. L2 Attachments Table
 CREATE TABLE l2_attachments (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -232,7 +233,7 @@ CREATE TABLE l2_attachments (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (change_no) REFERENCES l2_validation_logs(change_no) ON UPDATE CASCADE ON DELETE CASCADE
 );
-
+ 
 -- 8. L3 Approvals Table
 CREATE TABLE l3_approvals (
     change_no VARCHAR(50) PRIMARY KEY,
@@ -251,7 +252,7 @@ CREATE TABLE l3_approvals (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (change_no) REFERENCES change_requests(id) ON UPDATE CASCADE ON DELETE CASCADE
 );
-
+ 
 -- 9. HOD Approvals Table
 CREATE TABLE hod_approvals (
     id         INT AUTO_INCREMENT PRIMARY KEY,
@@ -265,5 +266,5 @@ CREATE TABLE hod_approvals (
     UNIQUE KEY uk_change_dept (change_no, hod_dept),
     FOREIGN KEY (change_no) REFERENCES change_requests(id) ON UPDATE CASCADE ON DELETE CASCADE
 );
-
+ 
 SET FOREIGN_KEY_CHECKS = 1;
